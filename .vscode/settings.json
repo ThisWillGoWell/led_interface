@@ -1,0 +1,5 @@
+{
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true,
+    "python.pythonPath": "/Users/wggowell/workspace/mcu/wall_controller/.venv/bin/python3"
+}
