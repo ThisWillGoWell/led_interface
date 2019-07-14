@@ -38,7 +38,12 @@ class Knob:
                 self.debouncer[channel]['bounced'] =  True 
                 if self.first_channel != -1 and self.first_channel != channel:
                     self.first_channel = -1
-                    self.on_up_func(channel == self.encoder_pin_a)
+                    if channel == self.encoder_pin_a:
+                        self.on_up_func()
+                        print("up event")
+                    else: 
+                        self.on_down_func()
+                        print("down event")
 
         else:
             if not self.debouncer[channel]['bounced'] and t - self.debouncer[channel]['fall_time'] > 1000000000: # 1 second since went down and not debounced, reset
