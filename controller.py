@@ -1,11 +1,12 @@
-from drivers.knob import Knob
+from drivers.buttons import Buttons
 from drivers.lcd import Display
+from drivers.mcu import Mcu
 from menu import Menu
 import board
 
-pin_knob_encoder_a = 18
-pin_knob_encoder_b = 17
-pin_knob_encoder_button = 4
+pin_button_up = 18
+pin_button_down = 4
+pin_button_select = 17
 
 # uses circuirt python bindings
 pin_lcd_lcd_rs = board.D12
@@ -15,17 +16,11 @@ pin_lcd_lcd_d5 = board.D22
 pin_lcd_lcd_d6 = board.D23
 pin_lcd_lcd_d7 = board.D24
 
-pin_lcd_lcd_rs, 
-pin_lcd_lcd_en, 
-pin_lcd_lcd_d4, 
-pin_lcd_lcd_d5, 
-pin_lcd_lcd_d6, 
-pin_lcd_lcd_d7, 
-
-
 class Controller:
     def __init__(self):
-    
+        
+        self.mcu = Mcu()
+
         self.display = Display(
             pin_lcd_lcd_rs, 
             pin_lcd_lcd_en, 
@@ -35,15 +30,15 @@ class Controller:
             pin_lcd_lcd_d7
         ) 
 
-        self.menu = Menu(self.display.update)    
+        self.menu = Menu(on_message_update=self.display.update, on_mode_update=self.mcu.set_mode)    
         self.menu.update_message()
 
-        self.knob = Knob(   
-            pin_knob_encoder_a, 
-            pin_knob_encoder_b, 
-            pin_knob_encoder_button,
+        self.buttons = Buttons(   
+            pin_button_up, 
             self.menu.on_up, 
+            pin_button_down, 
             self.menu.on_down, 
+            pin_button_select,
             self.menu.on_ok
         )
 

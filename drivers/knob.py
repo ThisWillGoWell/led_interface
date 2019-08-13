@@ -1,6 +1,9 @@
 import RPi.GPIO as GPIO  
 GPIO.setmode(GPIO.BCM)  
-import time 
+from time import sleep
+
+counter = 0
+
 class Knob:
     def __init__(self, encoder_pin_b, encoder_pin_a, switch_pin, on_up_func, on_down_func, on_click_func):
         self.encoder_pin_a = encoder_pin_a
@@ -13,53 +16,71 @@ class Knob:
         GPIO.setup(encoder_pin_a, GPIO.IN)  
         GPIO.setup(switch_pin, GPIO.IN)  
 
-        self.bounced = False 
-        self.first_channel = -1
-
-        self.debouncer = {}
-
-        self.debouncer[encoder_pin_a] = {}
-        self.debouncer[encoder_pin_a]['fall_time'] = 0
-        self.debouncer[encoder_pin_a]['bounced'] = True
-        
-        self.debouncer[encoder_pin_b] = {}
-        self.debouncer[encoder_pin_b]['fall_time'] = 0
-        self.debouncer[encoder_pin_b]['bounced'] = True
-
-        GPIO.add_event_detect(encoder_pin_b, GPIO.BOTH, callback=self.on_turn_event )  
-        GPIO.add_event_detect(encoder_pin_a, GPIO.BOTH, callback=self.on_turn_event)  
-        GPIO.add_event_detect(switch_pin, GPIO.FALLING, callback=self.on_click_event, bouncetime=500)  
+        GPIO.add_event_detect(encoder_pin_a, GPIO.RISING, callback=self.rotation_decode, bouncetime=2)  
+        GPIO.add_event_detect(switch_pin, GPIO.FALLING, callback=self.on_click_event, bouncetime=400)  
         
 
-    def on_turn_event(self, channel):
-        t = time.time_ns()        
-        if GPIO.input(channel): #rising edge
-            if t - self.debouncer[channel]['fall_time'] > 100000: # 1ms since last fall:
-                self.debouncer[channel]['bounced'] =  True 
-                if self.first_channel != -1 and self.first_channel != channel:
-                    self.first_channel = -1
-                    if channel == self.encoder_pin_a:
-                        self.on_up_func()
-                        print("up event")
-                    else: 
-                        self.on_down_func()
-                        print("down event")
 
-        else:
-            if not self.debouncer[channel]['bounced'] and t - self.debouncer[channel]['fall_time'] > 1000000000: # 1 second since went down and not debounced, reset
-                self.debouncer[channel]['bounced'] = True 
-            
-        if self.debouncer[channel]['bounced']: # are we ready to look at a down
-                self.debouncer[channel]['fall_time'] = t
-                self.debouncer[channel]['bounced'] = False
+    def rotation_decode(self, channel):
+        '''
+        This function decodes the direction of a rotary encoder and in- or
+        decrements a counter.
 
-                if self.first_channel == -1:
-                    self.first_channel = channel
-               
+        The code works from the "early detection" principle that when turning the
+        encoder clockwise, the A-switch gets activated before the B-switch.
+        When the encoder is rotated anti-clockwise, the B-switch gets activated
+        before the A-switch. The timing is depending on the mechanical design of
+        the switch, and the rotational speed of the knob.
+
+        This function gets activated when the A-switch goes high. The code then
+        looks at the level of the B-switch. If the B switch is (still) low, then
+        the direction must be clockwise. If the B input is (still) high, the
+        direction must be anti-clockwise.
+
+        All other conditions (both high, both low or A=0 and B=1) are filtered out.
+
+        To complete the click-cycle, after the direction has been determined, the
+        code waits for the full cycle (from indent to indent) to finish.
+
+        '''
+
+        global counter 
+
+        sleep(0.002) # extra 2 mSec de-bounce time
+
+        # read both of the switches
+        Switch_A = GPIO.input(self.encoder_pin_a)
+        Switch_B = GPIO.input(self.encoder_pin_b)
+
+        if (Switch_A == 1) and (Switch_B == 0) : # A then B ->
+           
+            # at this point, B may still need to go high, wait for it
+            while Switch_B == 0:
+                Switch_B = GPIO.input(self.encoder_pin_b)
+            # now wait for B to drop to end the click cycle
+            while Switch_B == 1:
+                Switch_B = GPIO.input(self.encoder_pin_b)
+            print("up -> ", counter)
+            counter += 1
+            self.on_up_func()
+            return
+
+        elif (Switch_A == 1) and (Switch_B == 1): # B then A <-
+            # A is already high, wait for A to drop to end the click cycle
+            while Switch_A == 1:
+                Switch_A = GPIO.input(self.encoder_pin_a)
+            print("down <- ", counter)
+            counter -= 1
+            self.on_down_func()
+            return
+
+        else: # discard all other combinations
+            return
+                
     
-    def on_click_event(self, value):
+    def on_click_event(self, channel):
         self.on_click_func()
-    
+        
 if __name__ == "__main__":
     def on_click():
         print("click")
